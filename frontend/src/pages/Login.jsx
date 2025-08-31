@@ -17,10 +17,24 @@ export default function Login() {
     setMsg('');
     try {
       const res = await api.post('/login', form);
-      login(res.data.token);
-      navigate('/posts');
+      const jwt =
+        res.data.token ||
+        res.data.access_token ||
+        res.data.jwt ||
+        res.data?.data?.token; // cover typical shapes
+
+      if (!jwt) {
+        throw new Error('No token found in response');
+      }
+
+      login(jwt);                           // sets localStorage + context
+      navigate('/posts', { replace: true }); // go to posts
     } catch (err) {
-      setMsg(err.response?.data?.error || 'Login failed');
+      setMsg(
+        err.response?.data?.error ||
+        err.message ||
+        'Login failed'
+      );
     }
   };
 

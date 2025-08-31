@@ -2,11 +2,9 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../AuthContext';
 import api from '../api';
 import PostForm from './../componenets/PostForm';
-import { useNavigate } from 'react-router-dom';
 
 export default function Posts() {
   const { token, logout } = useAuth();
-  const navigate = useNavigate();
 
   const [posts, setPosts] = useState([]);
   const [lastAllCache, setLastAllCache] = useState('');
@@ -17,13 +15,12 @@ export default function Posts() {
   const [loadingOne, setLoadingOne] = useState(false);
   const [error, setError] = useState('');
 
+  // Only fetch when a token exists; routing already guarantees we're authed
   useEffect(() => {
-    if (!token) {
-      navigate('/login');
-      return;
-    }
+    if (!token) return;
     fetchAll();
-  }, [token, navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]); // token in deps so a new login triggers fetch
 
   async function fetchAll() {
     setLoadingAll(true);
@@ -56,10 +53,9 @@ export default function Posts() {
   }
 
   const onCreated = (post) => {
-    // Optimistic prepend; your API should also invalidate list cache server-side
+    // Optimistic prepend; backend should also invalidate Redis list cache
     setPosts((p) => [post, ...p]);
-    // After creation, you can optionally refresh to see server cache status
-    // fetchAll();
+    // Optionally: fetchAll(); // to see new X-Cache header status
   };
 
   return (

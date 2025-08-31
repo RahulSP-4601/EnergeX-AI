@@ -4,9 +4,17 @@ import Register from './pages/Register';
 import Login from './pages/Login';
 import Posts from './pages/Posts';
 
+// Keep this: sends users to /posts if logged in, else /login
 function HomeGate() {
   const { token } = useAuth();
-  return token ? <Navigate to="/posts" /> : <Navigate to="/login" />;
+  return token ? <Navigate to="/posts" replace /> : <Navigate to="/login" replace />;
+}
+
+// NEW: simple protected route wrapper
+function ProtectedRoute({ children }) {
+  const { token } = useAuth();
+  if (!token) return <Navigate to="/login" replace />;
+  return children;
 }
 
 export default function App() {
@@ -22,7 +30,14 @@ export default function App() {
           <Route path="/" element={<HomeGate />} />
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/posts" element={<Posts />} />
+          <Route
+            path="/posts"
+            element={
+              <ProtectedRoute>
+                <Posts />
+              </ProtectedRoute>
+            }
+          />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
