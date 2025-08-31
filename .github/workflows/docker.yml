@@ -3,10 +3,9 @@ name: CD - Build & Push images
 on:
   push:
     branches: [ "main" ]
-    tags: [ "v*" ]
+    tags:     [ "v*" ]
 
 env:
-  REGISTRY: docker.io
   IMAGE_NAMESPACE: ${{ secrets.DOCKERHUB_USERNAME }}
   LUMEN_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/energex-lumen
   NODE_IMAGE:  ${{ secrets.DOCKERHUB_USERNAME }}/energex-node-cache
@@ -20,7 +19,7 @@ jobs:
 
       # Only log in if BOTH secrets exist
       - name: Log in to Docker Hub
-        if: ${{ secrets.DOCKERHUB_USERNAME && secrets.DOCKERHUB_TOKEN }}
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -33,12 +32,12 @@ jobs:
         id: meta
         run: |
           if [[ "${GITHUB_REF_TYPE}" == "branch" ]]; then
-            echo "LUMEN_TAGS=type=raw,value=latest" >> $GITHUB_OUTPUT
-            echo "NODE_TAGS=type=raw,value=latest"  >> $GITHUB_OUTPUT
+            echo "LUMEN_TAGS=latest" >> "$GITHUB_OUTPUT"
+            echo "NODE_TAGS=latest"  >> "$GITHUB_OUTPUT"
           else
             ver="${GITHUB_REF_NAME#v}"
-            echo "LUMEN_TAGS=type=raw,value=${ver},type=raw,value=latest" >> $GITHUB_OUTPUT
-            echo "NODE_TAGS=type=raw,value=${ver},type=raw,value=latest"  >> $GITHUB_OUTPUT
+            echo "LUMEN_TAGS=${ver},latest" >> "$GITHUB_OUTPUT"
+            echo "NODE_TAGS=${ver},latest"  >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build & push Lumen API image
@@ -46,9 +45,9 @@ jobs:
         with:
           context: .
           file: docker/lumen.Dockerfile
-          # push only if secrets present (logged in)
-          push: ${{ secrets.DOCKERHUB_USERNAME && secrets.DOCKERHUB_TOKEN }}
-          tags: ${{ env.LUMEN_IMAGE }}:latest
+          push: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+          # multiple tags allowed as comma-separated list
+          tags: ${{ env.LUMEN_IMAGE }}:${{ steps.meta.outputs.LUMEN_TAGS }}
           labels: |
             org.opencontainers.image.source=${{ github.repository }}
 
@@ -57,7 +56,7 @@ jobs:
         with:
           context: ./node-cache-service
           file: ./node-cache-service/Dockerfile
-          push: ${{ secrets.DOCKERHUB_USERNAME && secrets.DOCKERHUB_TOKEN }}
-          tags: ${{ env.NODE_IMAGE }}:latest
+          push: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+          tags: ${{ env.NODE_IMAGE }}:${{ steps.meta.outputs.NODE_TAGS }}
           labels: |
             org.opencontainers.image.source=${{ github.repository }}
