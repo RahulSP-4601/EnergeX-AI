@@ -16,7 +16,6 @@ jobs:
         env:
           MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: energeX_test
-          MYSQL_ROOT_HOST: "%"                     # allow root from any host (still create a ci user below)
           MYSQL_AUTHENTICATION_PLUGIN: mysql_native_password
         ports: ["3306:3306"]
         options: >-
@@ -37,7 +36,7 @@ jobs:
         working-directory: lumen-api
         run: composer install --prefer-dist --no-interaction --no-progress
 
-      # Create a dedicated MySQL user for tests so we don't depend on root host rules
+      # Wait for MySQL and create a dedicated CI user with DB grants
       - name: Create CI DB user
         run: |
           sudo apt-get update -y
@@ -51,19 +50,32 @@ jobs:
           FLUSH PRIVILEGES;
           SQL
 
-      - name: Prepare .env.testing
+      - name: Prepare env files for CI
         working-directory: lumen-api
         run: |
-          cp .env.testing .env
-          sed -i 's/^DB_HOST=.*/DB_HOST=127.0.0.1/' .env
-          sed -i 's/^DB_PORT=.*/DB_PORT=3306/' .env
-          sed -i 's/^DB_DATABASE=.*/DB_DATABASE=energeX_test/' .env
-          sed -i 's/^DB_USERNAME=.*/DB_USERNAME=ci/' .env
-          sed -i 's/^DB_PASSWORD=.*/DB_PASSWORD=ci/' .env
-          echo "JWT_SECRET=${{ secrets.CI_JWT_SECRET }}" >> .env
+          cp .env.testing .env || true
+          for f in .env .env.testing; do
+            grep -q '^DB_CONNECTION=' "$f" && sed -i 's/^DB_CONNECTION=.*/DB_CONNECTION=mysql/' "$f" || echo 'DB_CONNECTION=mysql' >> "$f"
+            grep -q '^DB_HOST=' "$f"       && sed -i 's/^DB_HOST=.*/DB_HOST=127.0.0.1/' "$f"      || echo 'DB_HOST=127.0.0.1' >> "$f"
+            grep -q '^DB_PORT=' "$f"       && sed -i 's/^DB_PORT=.*/DB_PORT=3306/' "$f"           || echo 'DB_PORT=3306' >> "$f"
+            grep -q '^DB_DATABASE=' "$f"   && sed -i 's/^DB_DATABASE=.*/DB_DATABASE=energeX_test/' "$f" || echo 'DB_DATABASE=energeX_test' >> "$f"
+            grep -q '^DB_USERNAME=' "$f"   && sed -i 's/^DB_USERNAME=.*/DB_USERNAME=ci/' "$f"     || echo 'DB_USERNAME=ci' >> "$f"
+            grep -q '^DB_PASSWORD=' "$f"   && sed -i 's/^DB_PASSWORD=.*/DB_PASSWORD=ci/' "$f"     || echo 'DB_PASSWORD=ci' >> "$f"
+          done
+          # JWT secret (fallback if secret not set)
+          echo "JWT_SECRET=${{ secrets.CI_JWT_SECRET || 'testing_jwt_secret_please_override' }}" >> .env
+          echo "JWT_SECRET=${{ secrets.CI_JWT_SECRET || 'testing_jwt_secret_please_override' }}" >> .env.testing
 
-      - name: Run migrations (with small retry)
+      - name: Run migrations (retry a bit)
         working-directory: lumen-api
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: energeX_test
+          DB_USERNAME: ci
+          DB_PASSWORD: ci
+          APP_ENV: testing
         run: |
           for i in {1..5}; do
             php artisan migrate --force && break || { echo "migrate retry $i"; sleep 3; }
@@ -71,6 +83,16 @@ jobs:
 
       - name: Run PHPUnit
         working-directory: lumen-api
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: energeX_test
+          DB_USERNAME: ci
+          DB_PASSWORD: ci
+          APP_ENV: testing
+          CACHE_DRIVER: array
+          QUEUE_CONNECTION: sync
         run: vendor/bin/phpunit --colors=always
 
   node-tests:
