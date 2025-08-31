@@ -165,7 +165,7 @@ CI will also run these automatically on push.
   ![Create a new post](output/CreatePost.png)
 
 - Fetch All Post - GET /api/posts
-  ![Fetch All Post](output/FetchAllPost.png.png)
+  ![Fetch All Post](output/FetchAllPost.png)
 
 - Fetch a single Post - GET /api/posts/{id}
   ![Fetch a single Post](output/Fetch1Post.png)
