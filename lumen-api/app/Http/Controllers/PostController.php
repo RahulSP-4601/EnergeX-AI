@@ -4,72 +4,67 @@ namespace App\Http\Controllers;
 
 use App\Models\Post;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class PostController extends Controller
 {
-    // GET /api/posts  (cache list)
+    // GET /api/posts  (cached)
     public function index()
     {
-        $redis = app('redis');
-        $key   = 'posts:all';
-        $ttl   = (int) env('CACHE_TTL', 60);
+        $cacheKey = 'posts.index';
+        $ttl = (int) env('CACHE_TTL', 300); // seconds
 
-        if ($cached = $redis->get($key)) {
-            $data = json_decode($cached, true);
-            return response()->json($data, 200, ['X-Cache' => 'HIT']);
-        }
+        $wasHit = Cache::has($cacheKey);
+        $posts = Cache::remember($cacheKey, $ttl, function () {
+            return Post::orderBy('id', 'desc')->get();
+        });
 
-        $posts = Post::with('user:id,name,email')
-            ->orderByDesc('id')
-            ->get()
-            ->toArray();
-
-        $redis->setex($key, $ttl, json_encode($posts));
-        return response()->json($posts, 200, ['X-Cache' => 'MISS']);
+        return response()->json($posts)
+            ->header('X-Cache', $wasHit ? 'HIT' : 'MISS');
     }
 
-    // GET /api/posts/{id}  (cache single)
+    // GET /api/posts/{id}  (cached)
     public function show($id)
     {
-        $redis = app('redis');
-        $key   = "posts:$id";
-        $ttl   = (int) env('CACHE_TTL', 60);
+        $cacheKey = "posts.show.$id";
+        $ttl = (int) env('CACHE_TTL', 300);
 
-        if ($cached = $redis->get($key)) {
-            $data = json_decode($cached, true);
-            return response()->json($data, 200, ['X-Cache' => 'HIT']);
-        }
+        $wasHit = Cache::has($cacheKey);
+        $post = Cache::remember($cacheKey, $ttl, function () use ($id) {
+            return Post::find($id);
+        });
 
-        $post = Post::with('user:id,name,email')->find($id);
         if (!$post) {
-            return response()->json(['message' => 'Post not found'], 404);
+            // Avoid caching null for long TTLs
+            Cache::forget($cacheKey);
+            return response()->json(['error' => 'Post not found'], 404)
+                ->header('X-Cache', $wasHit ? 'HIT' : 'MISS');
         }
 
-        $payload = $post->toArray();
-        $redis->setex($key, $ttl, json_encode($payload));
-
-        return response()->json($payload, 200, ['X-Cache' => 'MISS']);
+        return response()->json($post)
+            ->header('X-Cache', $wasHit ? 'HIT' : 'MISS');
     }
 
-    // POST /api/posts  (invalidate list cache; optionally seed single-key)
+    // POST /api/posts  (invalidates caches)
     public function store(Request $req)
     {
         $this->validate($req, [
-            'title'   => 'required|string',
+            'title'   => 'required|string|max:255',
             'content' => 'required|string',
-            'user_id' => 'required|integer|exists:users,id',
         ]);
+
+        // jwt.auth middleware attaches the authenticated user
+        $user = $req->user();
 
         $post = Post::create([
-            'title'   => $req->title,
-            'content' => $req->content,
-            'user_id' => $req->user_id,
+            'title'   => $req->input('title'),
+            'content' => $req->input('content'),
+            'user_id' => $user->id,
         ]);
 
-        // Invalidate caches
-        $redis = app('redis');
-        $redis->del('posts:all');              // list cache
-        $redis->del("posts:{$post->id}");      // single cache (ensure fresh next read)
+        // Bust caches
+        Cache::forget('posts.index');
+        Cache::forget("posts.show.{$post->id}");
 
         return response()->json(['message' => 'Created', 'post' => $post], 201);
     }
