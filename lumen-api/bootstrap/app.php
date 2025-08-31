@@ -70,7 +70,6 @@ $app->singleton('redis', function () {
         'host'     => env('REDIS_HOST', '127.0.0.1'),
         'port'     => (int) env('REDIS_PORT', 6379),
         'password' => env('REDIS_PASSWORD') ?: null,
-        // If you plan to use a database index, uncomment next line:
         // 'database' => (int) env('REDIS_DB', 0),
     ];
     return new Predis\Client($params);
@@ -81,10 +80,6 @@ $app->singleton('redis', function () {
 | Register Middleware
 |--------------------------------------------------------------------------
 */
-// $app->middleware([
-//     // Add global middleware (e.g., CORS) here if needed
-// ]);
-
 $app->routeMiddleware([
     'auth'        => App\Http\Middleware\Authenticate::class,
     'jwt.auth'    => PHPOpenSourceSaver\JWTAuth\Http\Middleware\Authenticate::class,
@@ -95,27 +90,25 @@ $app->middleware([
     App\Http\Middleware\CorsMiddleware::class,
 ]);
 
-
 /*
 |--------------------------------------------------------------------------
 | Register Service Providers
 |--------------------------------------------------------------------------
 */
-// Do NOT register Illuminate\Redis\RedisServiceProvider here (version mismatch on PHP 8.4).
 $app->register(PHPOpenSourceSaver\JWTAuth\Providers\LumenServiceProvider::class);
 
 /*
 |--------------------------------------------------------------------------
-| Facade Aliases (for convenience)
+| Facade Aliases (guarded to prevent redeclare during tests)
 |--------------------------------------------------------------------------
 */
-class_alias(PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth::class, 'JWTAuth');
-class_alias(PHPOpenSourceSaver\JWTAuth\Facades\JWTFactory::class, 'JWTFactory');
+if (!class_exists('JWTAuth')) {
+    class_alias(PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth::class, 'JWTAuth');
+}
 
-// Optional providers if you create them:
-// $app->register(App\Providers\AppServiceProvider::class);
-// $app->register(App\Providers\AuthServiceProvider::class);
-// $app->register(App\Providers\EventServiceProvider::class);
+if (!class_exists('JWTFactory')) {
+    class_alias(PHPOpenSourceSaver\JWTAuth\Facades\JWTFactory::class, 'JWTFactory');
+}
 
 /*
 |--------------------------------------------------------------------------
