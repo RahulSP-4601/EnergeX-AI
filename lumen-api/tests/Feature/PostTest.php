@@ -12,22 +12,29 @@ class PostTest extends TestCase
     {
         parent::setUp();
 
-        $this->post('/api/register', [
+        $reg = $this->post('/api/register', [
             'name' => 'Poster',
             'email' => 'poster@example.com',
             'password' => 'secret123'
         ]);
 
-        $login = $this->post('/api/login', [
+        if ($reg->response->getStatusCode() !== 201) {
+            fwrite(STDERR, "\nPostTest register body: ".$reg->response->getContent()."\n");
+        }
+
+        $loginRes = $this->post('/api/login', [
             'email' => 'poster@example.com',
             'password' => 'secret123'
-        ])->response->getContent();
+        ]);
 
-        $data = json_decode($login, true);
+        if ($loginRes->response->getStatusCode() !== 200) {
+            fwrite(STDERR, "\nPostTest login body: ".$loginRes->response->getContent()."\n");
+        }
 
-        $this->token = $data['token']
-            ?? $data['access_token']
-            ?? $data['jwt']
+        $body = json_decode($loginRes->response->getContent(), true) ?: [];
+        $this->token = $body['token']          // some implementations
+            ?? $body['access_token']           // jwt-auth default
+            ?? $body['jwt']
             ?? null;
 
         $this->assertNotNull($this->token, 'Login response did not contain a token');
@@ -40,6 +47,10 @@ class PostTest extends TestCase
             'content' => 'World'
         ], ['Authorization' => "Bearer {$this->token}"]);
 
+        if ($res->response->getStatusCode() !== 201) {
+            fwrite(STDERR, "\nCreate post body: ".$res->response->getContent()."\n");
+        }
+
         $res->seeStatusCode(201)
             ->seeJsonStructure(['post' => ['id', 'title', 'content', 'user_id']]);
     }
@@ -47,6 +58,9 @@ class PostTest extends TestCase
     public function testFetchAllPosts()
     {
         $res = $this->get('/api/posts', ['Authorization' => "Bearer {$this->token}"]);
+        if ($res->response->getStatusCode() !== 200) {
+            fwrite(STDERR, "\nFetch all posts body: ".$res->response->getContent()."\n");
+        }
         $res->seeStatusCode(200);
     }
 }
