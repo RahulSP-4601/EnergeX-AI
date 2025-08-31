@@ -4,11 +4,12 @@
   "private": true,
   "main": "dist/server.js",
   "scripts": {
-    "test": "jest",
-    "test:watch": "jest --watch",
     "build": "tsc",
+    "prestart": "npm run build",
     "start": "node dist/server.js",
-    "dev": "ts-node src/server.ts"
+    "dev": "ts-node src/server.ts",
+    "test": "jest --env=node --runInBand",
+    "test:watch": "jest --watch --env=node"
   },
   "dependencies": {
     "express": "^4.19.2",

@@ -1,0 +1,104 @@
+# docker-compose.yml
+version: "3.9"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: energex-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-Rahul@009}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-energeX}
+      TZ: UTC
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      # use the real env value; quote it so special chars don't break the cmd
+      test:
+        [
+          "CMD-SHELL",
+          'mysqladmin ping -h 127.0.0.1 -p"$${MYSQL_ROOT_PASSWORD}" --silent',
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: energex-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  lumen-app:
+    build:
+      context: .
+      dockerfile: docker/lumen.Dockerfile
+    container_name: energex-lumen
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_TIMEZONE: UTC
+      # DB (service names)
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: ${MYSQL_DATABASE:-energeX}
+      DB_USERNAME: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-Rahul@009}
+      # Redis
+      REDIS_CLIENT: predis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: null
+      # JWT
+      JWT_SECRET: ${JWT_SECRET:?set in .env next to docker-compose.yml}
+      JWT_TTL: 3600
+      JWT_ALGO: HS256
+    volumes:
+      - ./lumen-api:/var/www/html
+    # Pass php-fpm as an argument to the wait script (so the script can exec it)
+    command: ["/docker/wait-for-db.sh", "php-fpm"]
+    expose:
+      - "9000"
+    restart: unless-stopped
+
+  lumen-nginx:
+    image: nginx:alpine
+    container_name: energex-nginx
+    depends_on:
+      - lumen-app
+    ports:
+      - "8000:80"
+    volumes:
+      - ./lumen-api:/var/www/html:ro
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
+
+  node-cache:
+    build:
+      context: ./node-cache-service
+    container_name: energex-cache
+    environment:
+      NODE_ENV: production
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      PORT: 4000
+    depends_on:
+      redis:
+        condition: service_started
+    ports:
+      - "4000:4000"
+    # Ensure exec-form (previous error was from shell parsing "[node," as a string)
+    command: ["node", "dist/server.js"]
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
