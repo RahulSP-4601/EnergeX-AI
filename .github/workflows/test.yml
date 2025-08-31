@@ -1,0 +1,80 @@
+name: CI - Unit tests
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+
+jobs:
+  php-tests:
+    name: Lumen (PHPUnit)
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: energeX_test
+        ports: ["3306:3306"]
+        # wait for MySQL to accept connections
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot --silent"
+          --health-interval=5s --health-timeout=3s --health-retries=30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: mbstring, intl, pdo_mysql
+          coverage: none
+
+      - name: Install Composer deps (cached)
+        working-directory: lumen-api
+        run: |
+          composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Prepare .env.testing
+        working-directory: lumen-api
+        run: |
+          cp .env.testing .env
+          # point tests to CI MySQL
+          sed -i 's/^DB_HOST=.*/DB_HOST=127.0.0.1/' .env
+          sed -i 's/^DB_PORT=.*/DB_PORT=3306/' .env
+          sed -i 's/^DB_USERNAME=.*/DB_USERNAME=root/' .env
+          sed -i 's/^DB_PASSWORD=.*/DB_PASSWORD=root/' .env
+          # ensure a 256-bit JWT for HS256
+          echo "JWT_SECRET=${{ secrets.CI_JWT_SECRET }}" >> .env
+
+      - name: Run migrations
+        working-directory: lumen-api
+        run: php artisan migrate --force
+
+      - name: Run PHPUnit
+        working-directory: lumen-api
+        run: vendor/bin/phpunit --colors=always
+
+  node-tests:
+    name: Node cache (Jest)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: node-cache-service/package-lock.json
+
+      - name: Install deps
+        working-directory: node-cache-service
+        run: npm ci
+
+      - name: Run tests
+        working-directory: node-cache-service
+        run: npm test -- --color

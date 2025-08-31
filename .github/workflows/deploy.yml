@@ -1,0 +1,48 @@
+name: CD - Deploy to VM (SSH)
+
+on:
+  workflow_dispatch:
+  push:
+    tags: [ "v*" ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout infra files
+        uses: actions/checkout@v4
+
+      - name: Install SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_KEY }}
+
+      - name: Copy files to server
+        run: |
+          rsync -az --delete \
+            -e "ssh -o StrictHostKeyChecking=no" \
+            docker/ docker-compose.prod.yml ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/energeX/
+
+      - name: Docker login on server
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+            "echo ${{ secrets.DOCKERHUB_TOKEN }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin"
+
+      - name: Compose pull & up
+        env:
+          JWT_SECRET: ${{ secrets.PROD_JWT_SECRET }}
+          MYSQL_ROOT_PASSWORD: ${{ secrets.PROD_DB_ROOT_PASSWORD }}
+          LUMEN_IMAGE: ${{ secrets.PROD_LUMEN_IMAGE }}      # e.g. docker.io/youruser/energex-lumen
+          NODE_IMAGE:  ${{ secrets.PROD_NODE_IMAGE }}       # e.g. docker.io/youruser/energex-node-cache
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} <<'EOF'
+            set -e
+            cd ~/energeX
+            export JWT_SECRET='${JWT_SECRET}'
+            export MYSQL_ROOT_PASSWORD='${MYSQL_ROOT_PASSWORD}'
+            export LUMEN_IMAGE='${LUMEN_IMAGE}'
+            export NODE_IMAGE='${NODE_IMAGE}'
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d
+            docker system prune -f
+          EOF
