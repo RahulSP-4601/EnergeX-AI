@@ -180,5 +180,12 @@ CI will also run these automatically on push.
   ![ DevOps (Docker)](output/docker.png)
 
 - CI/CD Pipeline
-  ![CI/CD Pipeline](output/cicd1.png)
-  ![CI/CD Pipeline](output/cicd2.png)
+
+  - CI Unit Test
+    ![CI/CD Pipeline](output/cicd1.png)
+    ![CI/CD Pipeline](output/cicd2.png)
+
+  - CD Build & Push Image
+    ![CI/CD Pipeline](output/CICD3.png)
+    ![CI/CD Pipeline](output/CICD4.png)
+    ![CI/CD Pipeline](output/CICD5.png)
