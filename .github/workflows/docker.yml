@@ -3,7 +3,7 @@ name: CD - Build & Push images
 on:
   push:
     branches: [ "main" ]
-    tags: [ "v*" ]   # push images on releases too
+    tags: [ "v*" ]
 
 env:
   REGISTRY: docker.io
@@ -18,7 +18,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Only log in if BOTH secrets exist
       - name: Log in to Docker Hub
+        if: ${{ secrets.DOCKERHUB_USERNAME && secrets.DOCKERHUB_TOKEN }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -30,12 +32,10 @@ jobs:
       - name: Compute tags
         id: meta
         run: |
-          # default tag from branch
           if [[ "${GITHUB_REF_TYPE}" == "branch" ]]; then
             echo "LUMEN_TAGS=type=raw,value=latest" >> $GITHUB_OUTPUT
             echo "NODE_TAGS=type=raw,value=latest"  >> $GITHUB_OUTPUT
           else
-            # tags like v1.2.3 become 1.2.3 + latest
             ver="${GITHUB_REF_NAME#v}"
             echo "LUMEN_TAGS=type=raw,value=${ver},type=raw,value=latest" >> $GITHUB_OUTPUT
             echo "NODE_TAGS=type=raw,value=${ver},type=raw,value=latest"  >> $GITHUB_OUTPUT
@@ -46,19 +46,18 @@ jobs:
         with:
           context: .
           file: docker/lumen.Dockerfile
-          push: true
+          # push only if secrets present (logged in)
+          push: ${{ secrets.DOCKERHUB_USERNAME && secrets.DOCKERHUB_TOKEN }}
           tags: ${{ env.LUMEN_IMAGE }}:latest
           labels: |
             org.opencontainers.image.source=${{ github.repository }}
-          build-args: |
-            # none needed now
 
       - name: Build & push Node cache image
         uses: docker/build-push-action@v6
         with:
           context: ./node-cache-service
           file: ./node-cache-service/Dockerfile
-          push: true
+          push: ${{ secrets.DOCKERHUB_USERNAME && secrets.DOCKERHUB_TOKEN }}
           tags: ${{ env.NODE_IMAGE }}:latest
           labels: |
             org.opencontainers.image.source=${{ github.repository }}
