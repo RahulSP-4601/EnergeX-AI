@@ -61,6 +61,23 @@ $app->singleton(
 
 /*
 |--------------------------------------------------------------------------
+| Predis client binding (so you can use app('redis'))
+|--------------------------------------------------------------------------
+*/
+$app->singleton('redis', function () {
+    $params = [
+        'scheme'   => 'tcp',
+        'host'     => env('REDIS_HOST', '127.0.0.1'),
+        'port'     => (int) env('REDIS_PORT', 6379),
+        'password' => env('REDIS_PASSWORD') ?: null,
+        // If you plan to use a database index, uncomment next line:
+        // 'database' => (int) env('REDIS_DB', 0),
+    ];
+    return new Predis\Client($params);
+});
+
+/*
+|--------------------------------------------------------------------------
 | Register Middleware
 |--------------------------------------------------------------------------
 */

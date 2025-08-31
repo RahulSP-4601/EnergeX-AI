@@ -2,53 +2,56 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Post;
 use Illuminate\Http\Request;
-use Predis\Client as Predis;
 
 class PostController extends Controller
 {
-    private Predis $redis;
-    private string $LIST_KEY = 'posts:all';
-    private string $ITEM_KEY_PREFIX = 'posts:id:';
-    private int $TTL = 300;
-
-    public function __construct()
-    {
-        $this->redis = new Predis([
-            'host' => env('REDIS_HOST', '127.0.0.1'),
-            'port' => (int) env('REDIS_PORT', 6379),
-            'password' => env('REDIS_PASSWORD') ?: null,
-        ]);
-    }
-
+    // GET /api/posts  (cache list)
     public function index()
     {
-        if ($cached = $this->redis->get($this->LIST_KEY)) {
-            return response($cached, 200, ['Content-Type' => 'application/json']);
+        $redis = app('redis');
+        $key   = 'posts:all';
+        $ttl   = (int) env('CACHE_TTL', 60);
+
+        if ($cached = $redis->get($key)) {
+            $data = json_decode($cached, true);
+            return response()->json($data, 200, ['X-Cache' => 'HIT']);
         }
 
-        $posts = \App\Models\Post::with('user')->latest()->get();
-        $json  = $posts->toJson();
+        $posts = Post::with('user:id,name,email')
+            ->orderByDesc('id')
+            ->get()
+            ->toArray();
 
-        $this->redis->setex($this->LIST_KEY, $this->TTL, $json);
-        return response()->json($posts);
+        $redis->setex($key, $ttl, json_encode($posts));
+        return response()->json($posts, 200, ['X-Cache' => 'MISS']);
     }
 
+    // GET /api/posts/{id}  (cache single)
     public function show($id)
     {
-        $key = $this->ITEM_KEY_PREFIX.$id;
+        $redis = app('redis');
+        $key   = "posts:$id";
+        $ttl   = (int) env('CACHE_TTL', 60);
 
-        if ($cached = $this->redis->get($key)) {
-            return response($cached, 200, ['Content-Type' => 'application/json']);
+        if ($cached = $redis->get($key)) {
+            $data = json_decode($cached, true);
+            return response()->json($data, 200, ['X-Cache' => 'HIT']);
         }
 
-        $post = \App\Models\Post::findOrFail($id);
-        $json = $post->toJson();
+        $post = Post::with('user:id,name,email')->find($id);
+        if (!$post) {
+            return response()->json(['message' => 'Post not found'], 404);
+        }
 
-        $this->redis->setex($key, $this->TTL, $json);
-        return response()->json($post);
+        $payload = $post->toArray();
+        $redis->setex($key, $ttl, json_encode($payload));
+
+        return response()->json($payload, 200, ['X-Cache' => 'MISS']);
     }
 
+    // POST /api/posts  (invalidate list cache; optionally seed single-key)
     public function store(Request $req)
     {
         $this->validate($req, [
@@ -57,12 +60,17 @@ class PostController extends Controller
             'user_id' => 'required|integer|exists:users,id',
         ]);
 
-        $post = \App\Models\Post::create($req->only('title','content','user_id'));
+        $post = Post::create([
+            'title'   => $req->title,
+            'content' => $req->content,
+            'user_id' => $req->user_id,
+        ]);
 
         // Invalidate caches
-        $this->redis->del($this->LIST_KEY);
-        $this->redis->del($this->ITEM_KEY_PREFIX.$post->id);
+        $redis = app('redis');
+        $redis->del('posts:all');              // list cache
+        $redis->del("posts:{$post->id}");      // single cache (ensure fresh next read)
 
-        return response()->json($post, 201);
+        return response()->json(['message' => 'Created', 'post' => $post], 201);
     }
 }
