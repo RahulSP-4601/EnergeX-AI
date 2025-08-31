@@ -1,16 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit bootstrap="vendor/autoload.php" colors="true">
-    <testsuites>
-        <testsuite name="Application Test Suite">
-            <directory suffix="Test.php">./tests</directory>
-        </testsuite>
-    </testsuites>
+  <testsuites>
+    <testsuite name="Application Test Suite">
+      <directory suffix="Test.php">./tests</directory>
+    </testsuite>
+  </testsuites>
 
   <php>
-    <env name="DB_CONNECTION" value="mysql"/>
-    <env name="DB_DATABASE" value="energeX"/>
-    <env name="DB_USERNAME" value="root"/>
-    <env name="DB_PASSWORD" value="Rahul@009"/>
+    <env name="APP_ENV" value="testing"/>
   </php>
 </phpunit>
-

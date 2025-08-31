@@ -2,8 +2,16 @@
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
+/**
+ * Explicitly choose which env file to load.
+ * When PHPUnit sets APP_ENV=testing, we load .env.testing.
+ * Otherwise, the normal .env is used.
+ */
+$envFile = (getenv('APP_ENV') === 'testing') ? '.env.testing' : '.env';
+
 (new Laravel\Lumen\Bootstrap\LoadEnvironmentVariables(
-    dirname(__DIR__)
+    dirname(__DIR__),
+    $envFile
 ))->bootstrap();
 
 date_default_timezone_set(env('APP_TIMEZONE', 'UTC'));
