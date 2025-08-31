@@ -5,11 +5,6 @@ on:
     branches: [ "main" ]
     tags:     [ "v*" ]
 
-env:
-  IMAGE_NAMESPACE: ${{ secrets.DOCKERHUB_USERNAME }}
-  LUMEN_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/energex-lumen
-  NODE_IMAGE:  ${{ secrets.DOCKERHUB_USERNAME }}/energex-node-cache
-
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -17,9 +12,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Only log in if BOTH secrets exist
+      # Derive a single "should we push?" flag without using `secrets` in expressions
+      - name: Compute push flag and image names
+        id: cfg
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN:   ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          # decide push flag
+          if [[ -n "$DOCKERHUB_USERNAME" && -n "$DOCKERHUB_TOKEN" ]]; then
+            echo "push=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "push=false" >> "$GITHUB_OUTPUT"
+          fi
+          # image names (only need username; empty -> local-only tags)
+          if [[ -n "$DOCKERHUB_USERNAME" ]]; then
+            echo "lumen_image=${DOCKERHUB_USERNAME}/energex-lumen" >> "$GITHUB_OUTPUT"
+            echo "node_image=${DOCKERHUB_USERNAME}/energex-node-cache" >> "$GITHUB_OUTPUT"
+          else
+            # fallback so build still works (local tags)
+            echo "lumen_image=energex-lumen" >> "$GITHUB_OUTPUT"
+            echo "node_image=energex-node-cache" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Log in to Docker Hub
-        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+        if: ${{ steps.cfg.outputs.push == 'true' }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -32,12 +49,12 @@ jobs:
         id: meta
         run: |
           if [[ "${GITHUB_REF_TYPE}" == "branch" ]]; then
-            echo "LUMEN_TAGS=latest" >> "$GITHUB_OUTPUT"
-            echo "NODE_TAGS=latest"  >> "$GITHUB_OUTPUT"
+            echo "lumen_tags=latest" >> "$GITHUB_OUTPUT"
+            echo "node_tags=latest"  >> "$GITHUB_OUTPUT"
           else
             ver="${GITHUB_REF_NAME#v}"
-            echo "LUMEN_TAGS=${ver},latest" >> "$GITHUB_OUTPUT"
-            echo "NODE_TAGS=${ver},latest"  >> "$GITHUB_OUTPUT"
+            echo "lumen_tags=${ver},latest" >> "$GITHUB_OUTPUT"
+            echo "node_tags=${ver},latest"  >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build & push Lumen API image
@@ -45,9 +62,9 @@ jobs:
         with:
           context: .
           file: docker/lumen.Dockerfile
-          push: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
-          # multiple tags allowed as comma-separated list
-          tags: ${{ env.LUMEN_IMAGE }}:${{ steps.meta.outputs.LUMEN_TAGS }}
+          push: ${{ steps.cfg.outputs.push == 'true' }}
+          # supports comma-separated list of tags
+          tags: ${{ steps.cfg.outputs.lumen_image }}:${{ steps.meta.outputs.lumen_tags }}
           labels: |
             org.opencontainers.image.source=${{ github.repository }}
 
@@ -56,7 +73,7 @@ jobs:
         with:
           context: ./node-cache-service
           file: ./node-cache-service/Dockerfile
-          push: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
-          tags: ${{ env.NODE_IMAGE }}:${{ steps.meta.outputs.NODE_TAGS }}
+          push: ${{ steps.cfg.outputs.push == 'true' }}
+          tags: ${{ steps.cfg.outputs.node_image }}:${{ steps.meta.outputs.node_tags }}
           labels: |
             org.opencontainers.image.source=${{ github.repository }}
