@@ -1,0 +1,20 @@
+.login-wrap {
+  composes: container from "../styles/global.css";
+} /* optional if you use CSS modules; otherwise: */
+.login-wrap {
+  width: min(100%, 420px);
+  margin: 60px auto;
+  padding: 0 var(--space);
+}
+
+.login-card {
+  padding: 24px;
+}
+.login-title {
+  margin-bottom: 16px;
+}
+
+.auth-switch {
+  margin-top: 10px;
+  font-size: 13px;
+}

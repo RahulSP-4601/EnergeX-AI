@@ -1,0 +1,18 @@
+:root {
+  --bg: #0b1220;
+  --panel: #111a2b;
+  --panel-2: #0f1626;
+  --text: #e9eef7;
+  --muted: #aab4c4;
+  --brand: #6aa4ff;
+  --brand-2: #4b8dff;
+  --danger: #ff6b6b;
+  --ok: #36d399;
+  --border: #233047;
+  --badge: #172238;
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  --radius: 14px;
+  --radius-sm: 10px;
+  --radius-xs: 8px;
+  --space: 16px;
+}

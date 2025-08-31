@@ -1,12 +1,13 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../api';
+import './Register.css';
 
 export default function Register() {
   const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [msg, setMsg] = useState('');
 
-  const onChange = (e) =>
-    setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+  const onChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
 
   const submit = async (e) => {
     e.preventDefault();
@@ -20,18 +21,18 @@ export default function Register() {
   };
 
   return (
-    <div style={{ maxWidth: 420, margin: '40px auto' }}>
-      <h2>Register</h2>
-      <form onSubmit={submit}>
-        <input name="name" placeholder="Name" value={form.name} onChange={onChange} required />
-        <br /><br />
-        <input name="email" placeholder="Email" type="email" value={form.email} onChange={onChange} required />
-        <br /><br />
-        <input name="password" placeholder="Password" type="password" value={form.password} onChange={onChange} required />
-        <br /><br />
-        <button type="submit">Create account</button>
-      </form>
-      {msg && <p>{msg}</p>}
+    <div className="register-wrap">
+      <div className="card pad register-card">
+        <h2>Register</h2>
+        <form className="form" onSubmit={submit}>
+          <input className="input" name="name" placeholder="Name" value={form.name} onChange={onChange} required />
+          <input className="input" name="email" placeholder="Email" type="email" value={form.email} onChange={onChange} required />
+          <input className="input" name="password" placeholder="Password" type="password" value={form.password} onChange={onChange} required />
+          <button className="btn btn-primary" type="submit">Create account</button>
+          {msg && <p className="helper">{msg}</p>}
+          <div className="auth-switch">Already have an account? <Link to="/login">Login</Link></div>
+        </form>
+      </div>
     </div>
   );
 }

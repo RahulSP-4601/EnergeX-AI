@@ -1,0 +1,34 @@
+.posts-wrap {
+  width: min(100%, 960px);
+  margin: 40px auto;
+  padding: 0 var(--space);
+}
+
+.posts-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.cache-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.cache-badge {
+  composes: badge from "../styles/global.css";
+} /* if not using CSS modules just reuse .badge */
+.cache-badge {
+  background: var(--badge);
+}
+
+.panel {
+  padding: 16px;
+}
+
+.post-item {
+  padding: 14px;
+}

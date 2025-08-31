@@ -1,0 +1,9 @@
+.postform {
+  display: grid;
+  gap: 12px;
+}
+.postform-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}

@@ -1,0 +1,8 @@
+.register-wrap {
+  width: min(100%, 520px);
+  margin: 60px auto;
+  padding: 0 var(--space);
+}
+.register-card {
+  padding: 24px;
+}
