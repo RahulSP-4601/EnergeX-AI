@@ -15,4 +15,8 @@ $router->group(['prefix' => 'api'], function () use ($router) {
     $router->group(['middleware' => 'jwt.auth'], function () use ($router) {
         $router->post('posts', 'PostController@store');   // create -> bust cache
     });
+
+    $router->options('/{any:.*}', function () {
+        return response('', 204);
+    });
 });

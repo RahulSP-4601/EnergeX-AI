@@ -91,6 +91,11 @@ $app->routeMiddleware([
     'jwt.refresh' => PHPOpenSourceSaver\JWTAuth\Http\Middleware\RefreshToken::class,
 ]);
 
+$app->middleware([
+    App\Http\Middleware\CorsMiddleware::class,
+]);
+
+
 /*
 |--------------------------------------------------------------------------
 | Register Service Providers
