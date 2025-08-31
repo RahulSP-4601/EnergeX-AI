@@ -2,7 +2,7 @@ name: CI - Unit tests
 
 on:
   push:
-    branches: [ "**" ]
+    branches: ["**"]
   pull_request:
 
 jobs:
@@ -16,7 +16,8 @@ jobs:
         env:
           MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: energeX_test
-          MYSQL_ROOT_HOST: "%"        # allow root from the runner's IP
+          MYSQL_ROOT_HOST: "%"                     # allow root from any host (still create a ci user below)
+          MYSQL_AUTHENTICATION_PLUGIN: mysql_native_password
         ports: ["3306:3306"]
         options: >-
           --health-cmd="mysqladmin ping -h 127.0.0.1 -proot --silent"
@@ -34,8 +35,21 @@ jobs:
 
       - name: Install Composer deps (cached)
         working-directory: lumen-api
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      # Create a dedicated MySQL user for tests so we don't depend on root host rules
+      - name: Create CI DB user
         run: |
-          composer install --prefer-dist --no-interaction --no-progress
+          sudo apt-get update -y
+          sudo apt-get install -y mysql-client
+          for i in {1..30}; do
+            mysql -h 127.0.0.1 -P 3306 -uroot -proot -e "SELECT 1" && break || sleep 1
+          done
+          mysql -h 127.0.0.1 -P 3306 -uroot -proot <<'SQL'
+          CREATE USER IF NOT EXISTS 'ci'@'%' IDENTIFIED BY 'ci';
+          GRANT ALL PRIVILEGES ON `energeX_test`.* TO 'ci'@'%';
+          FLUSH PRIVILEGES;
+          SQL
 
       - name: Prepare .env.testing
         working-directory: lumen-api
@@ -43,8 +57,9 @@ jobs:
           cp .env.testing .env
           sed -i 's/^DB_HOST=.*/DB_HOST=127.0.0.1/' .env
           sed -i 's/^DB_PORT=.*/DB_PORT=3306/' .env
-          sed -i 's/^DB_USERNAME=.*/DB_USERNAME=root/' .env
-          sed -i 's/^DB_PASSWORD=.*/DB_PASSWORD=root/' .env
+          sed -i 's/^DB_DATABASE=.*/DB_DATABASE=energeX_test/' .env
+          sed -i 's/^DB_USERNAME=.*/DB_USERNAME=ci/' .env
+          sed -i 's/^DB_PASSWORD=.*/DB_PASSWORD=ci/' .env
           echo "JWT_SECRET=${{ secrets.CI_JWT_SECRET }}" >> .env
 
       - name: Run migrations (with small retry)
@@ -61,21 +76,17 @@ jobs:
   node-tests:
     name: Node cache (Jest)
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
       - name: Use Node 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
+          cache: npm
           cache-dependency-path: node-cache-service/package-lock.json
-
       - name: Install deps
         working-directory: node-cache-service
         run: npm ci
-
       - name: Run tests
         working-directory: node-cache-service
         run: npm test -- --color
